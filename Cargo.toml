@@ -1,0 +1,10 @@
+[package]
+name = "Yugin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu = "0.20"
+winit = "0.30"
+image = "0.25.6"
+pollster = "0.4.0"

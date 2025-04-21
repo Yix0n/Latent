@@ -3,7 +3,7 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Window, WindowId};
+use winit::window::{Icon, Window, WindowId};
 use crate::engine::renderer::renderer::Renderer;
 use crate::render_logic::draw_scene;
 
@@ -47,9 +47,11 @@ impl<'a> State<'a> {
 
         surface.configure(&device, &config);
 
+        window.set_title("Latent");
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shape Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("engine/renderer/shaders/shader.wgsl").into()),
         });
 
         let size = window.inner_size();

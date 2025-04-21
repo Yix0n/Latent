@@ -1,1 +1,1 @@
-pub mod sprite_renderer;
+pub mod renderer;

@@ -2,6 +2,7 @@ use wgpu::util::DeviceExt;
 use crate::engine::math::vector2::Vector2;
 use bytemuck::{Pod, Zeroable};
 use wgpu::StoreOp;
+use crate::engine::renderer::colors::Colors;
 
 pub struct Renderer{
     pub device: wgpu::Device,
@@ -85,8 +86,11 @@ impl Renderer {
         pos: Vector2,
         width: f32,
         height: f32,
-        color: [f32; 4]
+        color: Colors
     ) {
+
+        let color = color.as_f32();
+        
         let vertices = [
             Vertex { position: [pos.x, pos.y], color },
             Vertex { position: [pos.x + width, pos.y], color },
@@ -106,8 +110,10 @@ impl Renderer {
         a: Vector2,
         b: Vector2,
         c: Vector2,
-        color: [f32; 4]
+        color: Colors
     ){
+        let color = color.as_f32();
+        
         let vertices = [
             Vertex { position: [a.x, a.y], color },
             Vertex { position: [b.x, b.y], color },
@@ -124,7 +130,7 @@ impl Renderer {
         center: Vector2,
         radius: f32,
         segments: usize,
-        color: [f32; 4]
+        color: Colors
     ) {
         let mut vertices = Vec::with_capacity(segments * 3);
 
@@ -142,6 +148,8 @@ impl Renderer {
                 y: center.y + radius * theta2.sin(),
             };
 
+            let color = color.as_f32();
+            
             vertices.push(Vertex { position: [center.x, center.y], color });
             vertices.push(Vertex { position: [p1.x, p1.y], color });
             vertices.push(Vertex { position: [p2.x, p2.y], color });

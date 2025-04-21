@@ -2,6 +2,7 @@ use crate::engine::{
     renderer::renderer::Renderer,
     math::vector2::Vector2,
 };
+use crate::engine::renderer::colors::Colors;
 
 pub fn draw_scene(
     renderer: &Renderer,
@@ -16,6 +17,6 @@ pub fn draw_scene(
         Vector2::new(0f32, 0f32),
         0.55f32,
         10,
-        [0f32, 1f32, 1f32, 1f32]
+        Colors::Yellow
     )
 }

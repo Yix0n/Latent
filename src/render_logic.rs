@@ -14,8 +14,8 @@ pub fn draw_scene(
     renderer.draw_circle(
         encoder,
         view,
-        Vector2::new(0f32, 0f32),
-        0.55f32,
+        Vector2::new(500f32, 200f32),
+        10f32,
         10,
         Colors::Yellow
     )

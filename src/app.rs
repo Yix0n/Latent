@@ -52,7 +52,9 @@ impl<'a> State<'a> {
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
-        let renderer = Renderer::new(device, queue, shader, format);
+        let size = window.inner_size();
+
+        let renderer = Renderer::new(device, queue, shader, format, size.width, size.height);
 
         Self { surface, config, renderer }
     }
@@ -61,6 +63,8 @@ impl<'a> State<'a> {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.renderer.device, &self.config);
+        self.renderer.surface_config.width = new_size.width;
+        self.renderer.surface_config.height = new_size.height;
     }
 
     pub fn draw(&self) {

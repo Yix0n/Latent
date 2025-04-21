@@ -8,6 +8,7 @@ pub struct Renderer{
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub pipeline: wgpu::RenderPipeline,
+    pub surface_config: wgpu::SurfaceConfiguration,
 }
 
 #[repr(C)]
@@ -45,7 +46,18 @@ impl Renderer {
         queue: wgpu::Queue,
         shader: wgpu::ShaderModule,
         format: wgpu::TextureFormat,
+        width: u32,
+        height: u32,
     ) -> Self {
+        let surface_config = wgpu::SurfaceConfiguration{
+            usage:wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format, width, height,
+            present_mode: wgpu::PresentMode::Fifo,
+            desired_maximum_frame_latency: 0,
+            alpha_mode: Default::default(),
+            view_formats: vec![wgpu::TextureFormat::Rgba32Float],
+        };
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
             bind_group_layouts: &[],
@@ -77,7 +89,7 @@ impl Renderer {
             multiview: None,
         });
 
-        Self { device, queue, pipeline }
+        Self { device, queue, pipeline, surface_config }
     }
     pub fn draw_rectangle(
         &self,
@@ -86,22 +98,24 @@ impl Renderer {
         pos: Vector2,
         width: f32,
         height: f32,
-        color: Colors
+        color: Colors,
     ) {
-
         let color = color.as_f32();
-        
+
+        let window_size = self.get_window_size();
+
         let vertices = [
-            Vertex { position: [pos.x, pos.y], color },
-            Vertex { position: [pos.x + width, pos.y], color },
-            Vertex { position: [pos.x + width, pos.y + height], color },
-            Vertex { position: [pos.x, pos.y], color },
-            Vertex { position: [pos.x + width, pos.y + height], color },
-            Vertex { position: [pos.x, pos.y + height], color },
+            Vertex { position: Vector2::new(pos.x, pos.y).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(pos.x + width, pos.y).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(pos.x + width, pos.y + height).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(pos.x, pos.y).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(pos.x + width, pos.y + height).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(pos.x, pos.y + height).to_ndc(window_size), color },
         ];
 
         self.render_vertices(encoder, view, &vertices);
     }
+
 
     pub fn draw_triangle(
         &self,
@@ -113,11 +127,13 @@ impl Renderer {
         color: Colors
     ){
         let color = color.as_f32();
-        
+
+        let window_size = self.get_window_size();
+
         let vertices = [
-            Vertex { position: [a.x, a.y], color },
-            Vertex { position: [b.x, b.y], color },
-            Vertex { position: [c.x, c.y], color },
+            Vertex { position: Vector2::new(a.x, a.y).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(b.x, b.y).to_ndc(window_size), color },
+            Vertex { position: Vector2::new(c.x, c.y).to_ndc(window_size), color },
         ];
 
         self.render_vertices(encoder, view, &vertices);
@@ -134,6 +150,8 @@ impl Renderer {
     ) {
         let mut vertices = Vec::with_capacity(segments * 3);
 
+        let window_size = self.get_window_size();
+        
         for i in 0..segments {
             let theta1 = (i as f32 / segments as f32) * std::f32::consts::TAU;
             let theta2 = ((i + 1) as f32 / segments as f32) * std::f32::consts::TAU;
@@ -149,10 +167,10 @@ impl Renderer {
             };
 
             let color = color.as_f32();
-            
-            vertices.push(Vertex { position: [center.x, center.y], color });
-            vertices.push(Vertex { position: [p1.x, p1.y], color });
-            vertices.push(Vertex { position: [p2.x, p2.y], color });
+
+            vertices.push(Vertex { position: Vector2::new(center.x, center.y).to_ndc(window_size), color });
+            vertices.push(Vertex { position: Vector2::new(p1.x, p1.y).to_ndc(window_size), color });
+            vertices.push(Vertex { position: Vector2::new(p2.x, p2.y).to_ndc(window_size), color });
         }
 
         self.render_vertices(encoder, view, &vertices);
@@ -188,5 +206,9 @@ impl Renderer {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         render_pass.draw(0..vertices.len() as u32, 0..1);
+    }
+
+    fn get_window_size(&self) -> Vector2 {
+        Vector2::new(self.surface_config.width as f32, self.surface_config.height as f32)
     }
 }

@@ -1,11 +1,14 @@
 use std::sync::Arc;
+use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, WindowEvent, KeyEvent, StartCause};
+use winit::event::WindowEvent::KeyboardInput;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Icon, Window, WindowId};
+use winit::window::{Window, WindowId};
 use crate::engine::renderer::renderer::Renderer;
 use crate::render_logic::draw_scene;
+use crate::engine::events::keyboard::ButtonState::InputManager;
 
 pub struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -74,45 +77,36 @@ impl<'a> State<'a> {
     }
 
     pub fn draw(&self) {
-        let output = match self.surface.get_current_texture() {
-            Ok(tex) => tex,
-            Err(_) => return,
-        };
 
-        let view = output.texture.create_view(&Default::default());
-
-        let mut encoder = self.renderer.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
-
-        draw_scene(&self.renderer, &mut encoder, &view);
-
-        self.renderer.queue.submit(Some(encoder.finish()));
-        output.present();
     }
 }
 
-
-#[derive(Default)]
 pub struct App<'a>{
-    window: Option<Arc<Window>>,
-    state: Option<State<'a>>,
+    context: AppContext<'a>,
+}
+
+impl<'a> Default for App<'a> {
+    fn default() -> Self {
+        Self {
+            context: AppContext::new(),
+        }
+    }
 }
 
 impl<'a> ApplicationHandler for App<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         println!("App resumed");
-        if self.window.is_none() {
+        if self.context.window.is_none() {
             let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
-            self.window = Some(window.clone());
+            self.context.window = Some(window.clone());
 
             let state = pollster::block_on(State::new(window.clone()));
-            self.state = Some(state);
+            self.context.state = Some(state);
         }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
-        if id != self.window.as_ref().unwrap().id() {
+        if id != self.context.window.as_ref().unwrap().id() {
             return;
         }
 
@@ -123,12 +117,32 @@ impl<'a> ApplicationHandler for App<'a> {
             },
             WindowEvent::Resized(physical_size) => {
                 println!("Resize requested");
-                self.state.as_mut().unwrap().resize(physical_size);
+                self.context.state.as_mut().unwrap().resize(physical_size);
             },
             WindowEvent::RedrawRequested => {
-                println!("Redraw requested");
-                self.state.as_ref().unwrap().draw();
+                let now = Instant::now();
+                let delta = now.duration_since(self.context.last_frame_time);
+                self.context.last_frame_time = now;
+                let delta_seconds = delta.as_secs_f32();
+
+                // Update Draw, Inputs etc
+                self.context.update(delta_seconds);
+                self.context.draw();
+                
+                self.context.window.as_mut().unwrap().request_redraw();
             },
+            KeyboardInput {
+                event:
+                KeyEvent {
+                    physical_key,
+                    state,
+                    ..
+                },
+                ..
+            } => {
+                self.context.input_manager.handle_key(physical_key, state);
+            }
+
             _ => {},
         }
     }
@@ -139,5 +153,58 @@ impl<'a> ApplicationHandler for App<'a> {
 
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
         println!("App exiting");
+    }
+}
+
+pub struct AppContext<'a> {
+    pub window: Option<Arc<Window>>,
+    pub state: Option<State<'a>>,
+    pub input_manager: InputManager,
+
+    last_frame_time: Instant,
+}
+
+impl <'a> AppContext<'a> {
+    pub fn new() -> Self{
+        Self {
+            window: None,
+            state: None,
+            input_manager: InputManager::default(),
+            last_frame_time: Instant::now(),
+        }
+    }
+
+    pub fn initalize(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.is_none() {
+            let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
+            self.window = Some(window.clone());
+
+            let state = pollster::block_on(State::new(window.clone()));
+            self.state = Some(state);
+        }
+    }
+
+    pub fn draw(&mut self) {
+        if let Some(state) = &mut self.state {
+            let output = match state.surface.get_current_texture() {
+                Ok(tex) => tex,
+                Err(_) => return,
+            };
+
+            let view = output.texture.create_view(&Default::default());
+
+            let mut encoder = state.renderer.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+            draw_scene(&state.renderer, &mut encoder, &view, &self.input_manager);
+
+            state.renderer.queue.submit(Some(encoder.finish()));
+            output.present();
+        }
+    }
+
+    pub fn update(&mut self, delta_time: f32) {
+        self.input_manager.update();
     }
 }

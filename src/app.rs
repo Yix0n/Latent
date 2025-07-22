@@ -59,7 +59,7 @@ impl<'a> State<'a> {
 
         let size = window.inner_size();
 
-        let renderer = Renderer::new(device, queue, shader, format, size.width, size.height);
+        let renderer = Renderer::new(device, queue, shader, format, size.width, size.height, 10_000);
 
         Self { surface, config, renderer }
     }
@@ -197,7 +197,7 @@ impl <'a> AppContext<'a> {
                 label: Some("Render Encoder"),
             });
 
-            draw_scene(&state.renderer, &mut encoder, &view, &self.input_manager);
+            draw_scene(&mut state.renderer, &mut encoder, &view, &self.input_manager);
 
             state.renderer.queue.submit(Some(encoder.finish()));
             output.present();

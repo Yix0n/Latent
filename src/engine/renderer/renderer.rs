@@ -9,6 +9,11 @@ pub struct Renderer{
     pub queue: wgpu::Queue,
     pub pipeline: wgpu::RenderPipeline,
     pub surface_config: wgpu::SurfaceConfiguration,
+
+    vertex_buffer: wgpu::Buffer,
+    max_vertices: usize,
+
+    vertices: Vec<Vertex>,
 }
 
 #[repr(C)]
@@ -22,7 +27,7 @@ impl Vertex {
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem;
         wgpu::VertexBufferLayout{
-            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -31,7 +36,7 @@ impl Vertex {
                     format: wgpu::VertexFormat::Float32x2,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 2]>() as u64,
+                    offset: size_of::<[f32; 2]>() as u64,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x4,
                 }
@@ -48,6 +53,7 @@ impl Renderer {
         format: wgpu::TextureFormat,
         width: u32,
         height: u32,
+        max_vertices: usize,
     ) -> Self {
         let surface_config = wgpu::SurfaceConfiguration{
             usage:wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -55,7 +61,7 @@ impl Renderer {
             present_mode: wgpu::PresentMode::Fifo,
             desired_maximum_frame_latency: 0,
             alpha_mode: Default::default(),
-            view_formats: vec![wgpu::TextureFormat::Rgba32Float],
+            view_formats: vec![],
         };
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -89,69 +95,55 @@ impl Renderer {
             multiview: None,
         });
 
-        Self { device, queue, pipeline, surface_config }
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            size: (max_vertices * std::mem::size_of::<Vertex>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self { device, queue, pipeline, surface_config, vertex_buffer, max_vertices, vertices: Vec::with_capacity(max_vertices) }
     }
-    pub fn draw_rectangle(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
-        pos: Vector2,
-        width: f32,
-        height: f32,
-        color: Colors,
-    ) {
+
+    pub fn begin_frame(&mut self) {
+        self.vertices.clear();
+    }
+    pub fn draw_rectangle(&mut self, pos: Vector2, width: f32, height: f32, color: Colors) {
+        let window_size = Vector2::new(self.surface_config.width as f32, self.surface_config.height as f32);
         let color = color.as_f32();
 
-        let window_size = self.get_window_size();
+        let top_left = pos.to_ndc(window_size);
+        let top_right = Vector2::new(pos.x + width, pos.y).to_ndc(window_size);
+        let bottom_left = Vector2::new(pos.x, pos.y + height).to_ndc(window_size);
+        let bottom_right = Vector2::new(pos.x + width, pos.y + height).to_ndc(window_size);
 
-        let vertices = [
-            Vertex { position: Vector2::new(pos.x, pos.y).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(pos.x + width, pos.y).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(pos.x + width, pos.y + height).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(pos.x, pos.y).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(pos.x + width, pos.y + height).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(pos.x, pos.y + height).to_ndc(window_size), color },
-        ];
+        // Dwie trójkąty tworzące prostokąt
+        self.vertices.extend_from_slice(&[
+            Vertex { position: top_left, color },
+            Vertex { position: bottom_left, color },
+            Vertex { position: top_right, color },
 
-        self.render_vertices(encoder, view, &vertices);
+            Vertex { position: top_right, color },
+            Vertex { position: bottom_left, color },
+            Vertex { position: bottom_right, color },
+        ]);
     }
 
-
-    pub fn draw_triangle(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
-        a: Vector2,
-        b: Vector2,
-        c: Vector2,
-        color: Colors
-    ){
+    pub fn draw_triangle(&mut self, a: Vector2, b: Vector2, c: Vector2, color: Colors) {
+        let window_size = Vector2::new(self.surface_config.width as f32, self.surface_config.height as f32);
         let color = color.as_f32();
 
-        let window_size = self.get_window_size();
-
-        let vertices = [
-            Vertex { position: Vector2::new(a.x, a.y).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(b.x, b.y).to_ndc(window_size), color },
-            Vertex { position: Vector2::new(c.x, c.y).to_ndc(window_size), color },
-        ];
-
-        self.render_vertices(encoder, view, &vertices);
+        self.vertices.extend_from_slice(&[
+            Vertex { position: a.to_ndc(window_size), color },
+            Vertex { position: b.to_ndc(window_size), color },
+            Vertex { position: c.to_ndc(window_size), color },
+        ]);
     }
 
-    pub fn draw_circle(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
-        center: Vector2,
-        radius: f32,
-        segments: usize,
-        color: Colors
-    ) {
-        let mut vertices = Vec::with_capacity(segments * 3);
+    pub fn draw_circle(&mut self, center: Vector2, radius: f32, segments: usize, color: Colors) {
+        let window_size = Vector2::new(self.surface_config.width as f32, self.surface_config.height as f32);
+        let color = color.as_f32();
 
-        let window_size = self.get_window_size();
-        
         for i in 0..segments {
             let theta1 = (i as f32 / segments as f32) * std::f32::consts::TAU;
             let theta2 = ((i + 1) as f32 / segments as f32) * std::f32::consts::TAU;
@@ -166,14 +158,50 @@ impl Renderer {
                 y: center.y + radius * theta2.sin(),
             };
 
-            let color = color.as_f32();
-
-            vertices.push(Vertex { position: Vector2::new(center.x, center.y).to_ndc(window_size), color });
-            vertices.push(Vertex { position: Vector2::new(p1.x, p1.y).to_ndc(window_size), color });
-            vertices.push(Vertex { position: Vector2::new(p2.x, p2.y).to_ndc(window_size), color });
+            self.vertices.extend_from_slice(&[
+                Vertex { position: center.to_ndc(window_size), color },
+                Vertex { position: p1.to_ndc(window_size), color },
+                Vertex { position: p2.to_ndc(window_size), color },
+            ]);
         }
+    }
 
-        self.render_vertices(encoder, view, &vertices);
+    pub fn end_frame(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+    ) {
+        assert!(self.vertices.len() <= self.max_vertices, "Przekroczono max_vertices!");
+
+        self.queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.vertices),
+        );
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.1,
+                        g: 0.1,
+                        b: 0.1,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.draw(0..self.vertices.len() as u32, 0..1);
     }
 
     fn render_vertices(

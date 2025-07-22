@@ -9,33 +9,18 @@ use crate::engine::events::keyboard::ButtonState::{InputManager, Key};
 use crate::engine::renderer::colors::Colors;
 
 pub fn draw_scene(
-    renderer: &Renderer,
+    renderer: &mut Renderer,
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
     input_manager: &InputManager
 ) {
+    renderer.begin_frame();
+    
     // Drawing Logic goes here
-
-    renderer.draw_circle(
-        encoder,
-        view,
-        Vector2::new(500f32, 200f32),
-        10f32,
-        10,
-        Colors::Yellow
-    );
-
-    renderer.draw_triangle(
-        encoder,
-        view,
-        Vector2::new(400f32, 200f32),
-        Vector2::new(400f32, 100f32),
-        Vector2::new(200f32, 100f32),
-        Colors::Yellow
-    );
     
     if input_manager.is_held(Key::Code(KeyW)) {
         println!("W held");
+        renderer.draw_rectangle(Vector2::new(100.0, 100.0), 200.0, 150.0, Colors::Red)
     }
     
     if input_manager.is_pressed(Key::Code(KeyW)) {
@@ -45,4 +30,6 @@ pub fn draw_scene(
     if input_manager.is_released(Key::Code(KeyW)) {
         println!("W released");
     }
+    
+    renderer.end_frame(encoder, view);
 }

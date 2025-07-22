@@ -20,14 +20,6 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn new() -> Self {
-        Self {
-            key_states: HashMap::new(),
-            just_pressed: Vec::new(),
-            just_released: Vec::new(),
-        }
-    }
-
     pub fn update(&mut self) {
         for (_, state) in self.key_states.iter_mut() {
             *state = match *state {
@@ -50,31 +42,35 @@ impl InputManager {
     pub fn handle_key(&mut self, key: Key, state: ElementState) {
         match state {
             ElementState::Pressed => {
-                if self.key_states.get(&key) != Some(&ButtonState::Held) {
-                    self.just_pressed.push(key);
+                match self.key_states.get(&key) {
+                    Some(ButtonState::Held | ButtonState::Pressed) => {},
+                    _ => self.just_pressed.push(key),
                 }
-                self.key_states.insert(key, ButtonState::Held);
             }
             ElementState::Released => {
                 self.just_released.push(key);
-                self.key_states.insert(key, ButtonState::Released);
+                // self.key_states.insert(key, ButtonState::Released);
             }
         }
     }
 
     pub fn is_pressed(&self, key: Key) -> bool {
-        self.key_states.get(&key) == Some(&ButtonState::Pressed)
+        self.get_state(key) == ButtonState::Pressed
     }
 
     pub fn is_held(&self, key: Key) -> bool {
-        self.key_states.get(&key) == Some(&ButtonState::Held)
+        self.get_state(key) == ButtonState::Held
     }
 
     pub fn is_released(&self, key: Key) -> bool {
-        self.key_states.get(&key) == Some(&ButtonState::Released)
+        self.get_state(key) == ButtonState::Released
     }
 
     pub fn is_up(&self, key: Key) -> bool {
-        self.key_states.get(&key).unwrap_or(&ButtonState::Up) == &ButtonState::Up
+        self.get_state(key) == ButtonState::Up
+    }
+
+    pub fn get_state(&self, key: Key) -> ButtonState {
+        self.key_states.get(&key).copied().unwrap_or(ButtonState::Up)
     }
 }
